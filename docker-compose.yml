@@ -1,0 +1,23 @@
+services:
+  google-mcp-suite:
+    build: .
+    image: google-mcp-suite-network:latest
+    container_name: google-mcp-suite
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      PORT: 3000
+      # Default Google account label/email bound to every service.
+      GOOGLE_MCP_ACCOUNT: ${GOOGLE_MCP_ACCOUNT:-}
+      # Optional per-service overrides (must also be authorized via doctor):
+      # GMAIL_ACCOUNT: ${GMAIL_ACCOUNT:-}
+      # CALENDAR_ACCOUNT: ${CALENDAR_ACCOUNT:-}
+      # Optional bearer token required on every /<service>/mcp request.
+      AUTH_TOKEN: ${AUTH_TOKEN:-}
+    volumes:
+      # Persists ~/.google-mcp (client_secret.json + per-account OAuth tokens).
+      - google-mcp-config:/home/node/.google-mcp
+
+volumes:
+  google-mcp-config:

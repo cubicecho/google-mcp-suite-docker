@@ -1,0 +1,30 @@
+{
+  "name": "google-mcp-suite-network",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Expose simiancraft/google-mcp-suite (Gmail, Calendar, Sheets, Docs, Drive) over the network via Streamable HTTP.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "google-mcp-doctor": "node_modules/.bin/google-mcp-doctor"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "doctor": "google-mcp-doctor"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "express": "^4.21.2",
+    "google-mcp-suite": "^1.10.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
