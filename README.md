@@ -142,6 +142,44 @@ npm run build    # tsc -> dist/
 npm start        # node dist/index.js
 ```
 
+## Releases & Docker image
+
+Released images are published to Docker Hub at
+[`vantreeseba/google-mcp-suite`](https://hub.docker.com/r/vantreeseba/google-mcp-suite).
+Pull a pinned version (or `latest`) instead of building locally:
+
+```sh
+docker pull vantreeseba/google-mcp-suite:latest
+```
+
+To run the published image, set `image: vantreeseba/google-mcp-suite:latest`
+in `docker-compose.yml`, remove the `build: .` line, and run
+`docker compose up -d` (without `--build`).
+
+Versioning is automated with [semantic-release](https://semantic-release.gitbook.io/).
+On every push to `main`, GitHub Actions analyzes the
+[Conventional Commits](https://www.conventionalcommits.org/) since the last
+release and, when a release is warranted:
+
+- bumps the version and updates `CHANGELOG.md`,
+- creates the Git tag and GitHub release,
+- builds and pushes `vantreeseba/google-mcp-suite:<version>` and `:latest`.
+
+Commit messages drive the version bump: `fix:` → patch, `feat:` → minor,
+`feat!:`/`BREAKING CHANGE:` → major. Commits like `chore:`/`docs:` alone do not
+trigger a release.
+
+### CI setup
+
+The release workflow (`.github/workflows/release.yml`) requires two repository
+secrets for Docker Hub auth (Settings → Secrets and variables → Actions):
+
+- `DOCKERHUB_USERNAME` — your Docker Hub username (`vantreeseba`).
+- `DOCKERHUB_TOKEN` — a Docker Hub [access token](https://hub.docker.com/settings/security)
+  with Read & Write scope.
+
+`GITHUB_TOKEN` is provided automatically by Actions.
+
 ## Security notes
 
 - Set `AUTH_TOKEN` whenever the port is reachable beyond `localhost`. The bearer
