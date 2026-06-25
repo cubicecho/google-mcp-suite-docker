@@ -15,6 +15,12 @@ services:
       # CALENDAR_ACCOUNT: ${CALENDAR_ACCOUNT:-}
       # Optional bearer token required on every /<service>/mcp request.
       AUTH_TOKEN: ${AUTH_TOKEN:-}
+      # Credential admin UI (/admin): set a password or it is left unauthenticated.
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      # Loopback base for the OAuth redirect; change the port if you remap it,
+      # e.g. http://localhost:8080 when published as "8080:3000".
+      OAUTH_REDIRECT_BASE: ${OAUTH_REDIRECT_BASE:-http://localhost:${PORT:-3000}}
     volumes:
       # Persists ~/.google-mcp (client_secret.json + per-account OAuth tokens).
       - google-mcp-config:/home/node/.google-mcp

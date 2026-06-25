@@ -51,6 +51,29 @@ service endpoint only works once its account is authorized.
    APIs, create a **Desktop app** OAuth client, and download the client secret.
 2. Save it as `client_secret.json`.
 
+### Easiest: the `/admin` web UI
+
+The container ships a small credential UI at **`/admin`** that uploads the client
+secret and runs the per-account OAuth flow for you, writing the same files into
+the persistent volume that `google-mcp-doctor auth` would.
+
+1. Set `ADMIN_PASSWORD` (and optionally `ADMIN_USER`, default `admin`) in `.env`,
+   then `docker compose up -d --build`.
+2. Open `http://localhost:3000/admin`, upload your `client_secret.json`, enter an
+   account label/email, and click **Start authorization**.
+3. Approve in Google. If you opened the UI on the same machine, the redirect
+   completes automatically — refresh the page. If the UI is on another host, the
+   browser lands on a `localhost` page that won't load: copy that full URL from
+   the address bar and paste it back into the UI to finish.
+
+The account label you authorize is what you set as `GOOGLE_MCP_ACCOUNT` (or
+`<SERVICE>_ACCOUNT`). Tokens land in the volume at `~/.google-mcp/tokens/`.
+
+> The UI manages OAuth secrets. Always set `ADMIN_PASSWORD`, and don't expose the
+> port publicly without it — startup warns when it's unset. When the published
+> port isn't `3000`, set `OAUTH_REDIRECT_BASE` to match (e.g.
+> `http://localhost:8080`).
+
 ### Authorize an account (recommended: on your workstation)
 
 The consent flow opens a browser and uses a loopback redirect, which is awkward
@@ -106,6 +129,9 @@ curl localhost:3000/healthz
 | `GOOGLE_MCP_ACCOUNT` | —       | Account label/email bound to every service (must match `doctor auth`). |
 | `<SERVICE>_ACCOUNT`  | —       | Per-service override, e.g. `GMAIL_ACCOUNT`, `DRIVE_ACCOUNT`.       |
 | `AUTH_TOKEN`         | —       | If set, every `/<service>/mcp` request needs `Authorization: Bearer <token>`. |
+| `ADMIN_PASSWORD`     | —       | HTTP Basic password for the `/admin` credential UI. Unset = UI unauthenticated (warned at startup). |
+| `ADMIN_USER`         | `admin` | HTTP Basic username for `/admin`.                                 |
+| `OAUTH_REDIRECT_BASE`| `http://localhost:<PORT>` | Loopback base for the OAuth redirect URI; match your published port. |
 | `HOST`               | `0.0.0.0` | Bind address.                                                   |
 | `BODY_LIMIT`         | `50mb`  | Max JSON body (Drive uploads ride inside JSON-RPC).               |
 

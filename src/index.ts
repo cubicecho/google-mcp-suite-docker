@@ -18,6 +18,8 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 
+import { mountAdmin } from "./admin.js";
+
 // --- Configuration -----------------------------------------------------------
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -112,6 +114,9 @@ async function createSession(service: string): Promise<Session> {
 const app = express();
 app.use(express.json({ limit: BODY_LIMIT }));
 
+// Credential-management web UI at /admin (client secret + per-account OAuth).
+mountAdmin(app);
+
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!AUTH_TOKEN) return next();
   const header = req.headers.authorization ?? "";
@@ -132,6 +137,7 @@ app.get("/", (_req, res) => {
     name: "google-mcp-suite-network",
     transport: "streamable-http",
     endpoints: Object.keys(SERVICES).map((s) => `/${s}/mcp`),
+    admin: "/admin",
   });
 });
 
@@ -191,6 +197,8 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`google-mcp-suite-network listening on http://${HOST}:${PORT}`);
   console.log(`services: ${Object.keys(SERVICES).join(", ")}`);
   if (!AUTH_TOKEN) console.warn("AUTH_TOKEN is not set — endpoints are unauthenticated.");
+  if (!process.env.ADMIN_PASSWORD?.trim())
+    console.warn("ADMIN_PASSWORD is not set — the /admin credential UI is UNAUTHENTICATED.");
 });
 
 // --- Graceful shutdown -------------------------------------------------------
