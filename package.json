@@ -11,7 +11,8 @@
     "google-mcp-doctor": "node_modules/.bin/google-mcp-doctor"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run copy-assets",
+    "copy-assets": "node -e \"require('fs').cpSync('src/admin/public','dist/admin/public',{recursive:true})\"",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "doctor": "google-mcp-doctor",
@@ -20,6 +21,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "express": "^4.21.2",
+    "google-auth-library": "^10.7.0",
     "google-mcp-suite": "^1.10.1"
   },
   "devDependencies": {

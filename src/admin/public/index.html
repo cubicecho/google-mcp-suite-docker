@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>google-mcp-suite — credentials</title>
+  <link rel="stylesheet" href="/admin/assets/style.css">
+</head>
+<body>
+  <h1>google-mcp-suite — credentials</h1>
+  <p class="muted">Writes to <code id="dir">…</code>, exactly where the MCP servers read it.</p>
+  <div id="msg"></div>
+
+  <section>
+    <h2>1 · Shared OAuth client</h2>
+    <p class="muted">The Desktop-app <code>client_secret.json</code> from Google Cloud (<code>installed</code> or <code>web</code> shape). Shared by every account.</p>
+    <p>Status: <span id="cs-status">…</span></p>
+    <div class="row">
+      <input type="file" id="cs-file" accept="application/json,.json">
+      <button id="cs-save">Save client secret</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>2 · Authorized accounts</h2>
+    <table id="accounts"><thead><tr><th>Account</th><th>Scopes</th><th>Refresh</th><th>Access expires</th><th></th></tr></thead><tbody></tbody></table>
+    <p class="muted" id="no-accounts" hidden>No accounts authorized yet.</p>
+  </section>
+
+  <section>
+    <h2>3 · Authorize an account</h2>
+    <p class="muted">The label becomes the token filename and the account segment clients address, e.g. <code>/&lt;account&gt;/gmail</code>. Use the account's email to prefill Google's chooser.</p>
+    <div class="row">
+      <input id="acct" placeholder="you@example.com" size="28">
+      <button id="auth-start">Start authorization →</button>
+    </div>
+    <div id="step2" hidden style="margin-top:1rem">
+      <p>1. <a id="auth-link" href="#" target="_blank" rel="noopener">Open the Google consent screen</a> and approve.</p>
+      <p>2. If this page is running on another machine, the browser will land on a <em>localhost</em> page that won't load — copy that full URL from the address bar and paste it here:</p>
+      <textarea id="redir" placeholder="http://localhost:3000/admin/oauth/callback?state=…&code=…"></textarea>
+      <div class="row" style="margin-top:.5rem">
+        <button id="auth-finish">Finish authorization</button>
+        <span class="muted">(If you're on the same machine, it completes automatically — just refresh.)</span>
+      </div>
+    </div>
+  </section>
+
+  <script type="module" src="/admin/assets/main.js"></script>
+</body>
+</html>
