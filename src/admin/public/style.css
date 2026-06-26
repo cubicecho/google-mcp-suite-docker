@@ -1,0 +1,18 @@
+:root { color-scheme: light dark; }
+body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+h1 { font-size: 1.4rem; }
+h2 { font-size: 1.1rem; margin-top: 2rem; }
+section { border: 1px solid #8884; border-radius: .6rem; padding: 1rem 1.2rem; margin: 1rem 0; }
+input, textarea, button { font: inherit; padding: .4rem .6rem; border-radius: .4rem; border: 1px solid #8886; }
+button { cursor: pointer; background: #2563eb; color: #fff; border: none; }
+button.secondary { background: #6b7280; }
+button.danger { background: #b91c1c; padding: .2rem .5rem; }
+table { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+td, th { text-align: left; padding: .35rem .4rem; border-bottom: 1px solid #8883; }
+.muted { color: #6b7280; font-size: .85rem; }
+code { background: #8881; padding: .1rem .3rem; border-radius: .3rem; }
+.ok { color: #15803d; }
+.bad { color: #b91c1c; }
+.row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+textarea { width: 100%; min-height: 5rem; box-sizing: border-box; }
+#msg { position: sticky; top: 0; padding: .5rem; border-radius: .4rem; }

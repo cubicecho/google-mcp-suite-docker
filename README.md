@@ -1,10 +1,10 @@
 # google-mcp-suite-network
 
-![Gmail](https://img.shields.io/badge/Gmail-%2Fgmail%2Fmcp-EA4335?logo=gmail&logoColor=white)
-![Calendar](https://img.shields.io/badge/Calendar-%2Fcalendar%2Fmcp-4285F4?logo=googlecalendar&logoColor=white)
-![Sheets](https://img.shields.io/badge/Sheets-%2Fsheets%2Fmcp-34A853?logo=googlesheets&logoColor=white)
-![Docs](https://img.shields.io/badge/Docs-%2Fdocs%2Fmcp-4285F4?logo=googledocs&logoColor=white)
-![Drive](https://img.shields.io/badge/Drive-%2Fdrive%2Fmcp-FBBC04?logo=googledrive&logoColor=white)
+![Gmail](https://img.shields.io/badge/Gmail-%2Facct%2Fgmail-EA4335?logo=gmail&logoColor=white)
+![Calendar](https://img.shields.io/badge/Calendar-%2Facct%2Fcalendar-4285F4?logo=googlecalendar&logoColor=white)
+![Sheets](https://img.shields.io/badge/Sheets-%2Facct%2Fsheets-34A853?logo=googlesheets&logoColor=white)
+![Docs](https://img.shields.io/badge/Docs-%2Facct%2Fdocs-4285F4?logo=googledocs&logoColor=white)
+![Drive](https://img.shields.io/badge/Drive-%2Facct%2Fdrive-FBBC04?logo=googledrive&logoColor=white)
 ![Health](https://img.shields.io/badge/Health-%2Fhealthz-success)
 
 A tiny TypeScript wrapper that takes [`google-mcp-suite`](https://github.com/simiancraft/google-mcp-suite)
@@ -16,17 +16,20 @@ can run it once on a homelab/Docker host and point any MCP client at it.
 MCP client  ──HTTP──►  this proxy  ──stdio──►  google-mcp-<service>  ──►  Google APIs
 ```
 
-Each service is mounted at its own path:
+Each request is addressed as `/<account>/<service>`, so one deployment can serve
+several authorized Google accounts. `<account>` is a label you authorize in the
+`/admin` UI (its email or any `[A-Za-z0-9._%+@-]` name); `<service>` is one of:
 
-| Service  | Endpoint            |
-|----------|---------------------|
-| Gmail    | `/gmail/mcp`        |
-| Calendar | `/calendar/mcp`     |
-| Sheets   | `/sheets/mcp`       |
-| Docs     | `/docs/mcp`         |
-| Drive    | `/drive/mcp`        |
+| Service  | Endpoint                  |
+|----------|---------------------------|
+| Gmail    | `/<account>/gmail`        |
+| Calendar | `/<account>/calendar`     |
+| Sheets   | `/<account>/sheets`       |
+| Docs     | `/<account>/docs`         |
+| Drive    | `/<account>/drive`        |
 
-Plus `GET /healthz` for health checks and `GET /` for a service listing.
+For example, `POST /you@example.com/gmail`. Plus `GET /healthz` for health checks
+and `GET /` for a service + authorized-account listing.
 
 Every incoming HTTP session spawns its own child stdio server (identity in this
 suite is bound per process) and JSON-RPC messages are bridged transparently in
@@ -66,11 +69,13 @@ the persistent volume that `google-mcp-doctor auth` would.
    browser lands on a `localhost` page that won't load: copy that full URL from
    the address bar and paste it back into the UI to finish.
 
-The account label you authorize is what you set as `GOOGLE_MCP_ACCOUNT` (or
-`<SERVICE>_ACCOUNT`). Tokens land in the volume at `~/.google-mcp/tokens/`.
+The account label you authorize is the `<account>` segment you put in the request
+URL, e.g. `/you@example.com/gmail`. Tokens land in the volume at
+`~/.google-mcp/tokens/`. Authorize as many accounts as you like — each is
+addressable independently.
 
-> The UI manages OAuth secrets. Always set `ADMIN_PASSWORD`, and don't expose the
-> port publicly without it — startup warns when it's unset. When the published
+> The UI manages OAuth secrets, so `ADMIN_PASSWORD` is required: without it every
+> `/admin` route returns 503 (and startup warns). When the published
 > port isn't `3000`, set `OAUTH_REDIRECT_BASE` to match (e.g.
 > `http://localhost:8080`).
 
@@ -116,9 +121,10 @@ the doctor prints a URL to complete consent manually.
 ## Run
 
 ```sh
-cp .env.example .env       # set GOOGLE_MCP_ACCOUNT and (recommended) AUTH_TOKEN
+cp .env.example .env       # set ADMIN_PASSWORD and (recommended) AUTH_TOKEN
 docker compose up -d --build
 curl localhost:3000/healthz
+# then authorize one or more accounts at http://localhost:3000/admin
 ```
 
 ### Configuration
@@ -126,10 +132,8 @@ curl localhost:3000/healthz
 | Variable             | Default | Purpose                                                            |
 |----------------------|---------|--------------------------------------------------------------------|
 | `PORT`               | `3000`  | Published port.                                                    |
-| `GOOGLE_MCP_ACCOUNT` | —       | Account label/email bound to every service (must match `doctor auth`). |
-| `<SERVICE>_ACCOUNT`  | —       | Per-service override, e.g. `GMAIL_ACCOUNT`, `DRIVE_ACCOUNT`.       |
-| `AUTH_TOKEN`         | —       | If set, every `/<service>/mcp` request needs `Authorization: Bearer <token>`. |
-| `ADMIN_PASSWORD`     | —       | HTTP Basic password for the `/admin` credential UI. Unset = UI unauthenticated (warned at startup). |
+| `AUTH_TOKEN`         | —       | If set, every `/<account>/<service>` request needs `Authorization: Bearer <token>`. |
+| `ADMIN_PASSWORD`     | —       | HTTP Basic password for the `/admin` credential UI. **Required** — unset = every `/admin` route returns 503 (warned at startup). |
 | `ADMIN_USER`         | `admin` | HTTP Basic username for `/admin`.                                 |
 | `OAUTH_REDIRECT_BASE`| `http://localhost:<PORT>` | Loopback base for the OAuth redirect URI; match your published port. |
 | `HOST`               | `0.0.0.0` | Bind address.                                                   |
@@ -137,20 +141,20 @@ curl localhost:3000/healthz
 
 ## Connect an MCP client
 
-Point any Streamable-HTTP-capable MCP client at the per-service URL. Example
-(`.mcp.json` style):
+Point any Streamable-HTTP-capable MCP client at the `/<account>/<service>` URL,
+using an account you authorized in `/admin`. Example (`.mcp.json` style):
 
 ```json
 {
   "mcpServers": {
     "gmail": {
       "type": "http",
-      "url": "http://your-homelab-host:3000/gmail/mcp",
+      "url": "http://your-homelab-host:3000/you@example.com/gmail",
       "headers": { "Authorization": "Bearer YOUR_AUTH_TOKEN" }
     },
     "drive": {
       "type": "http",
-      "url": "http://your-homelab-host:3000/drive/mcp",
+      "url": "http://your-homelab-host:3000/you@example.com/drive",
       "headers": { "Authorization": "Bearer YOUR_AUTH_TOKEN" }
     }
   }

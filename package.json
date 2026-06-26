@@ -11,7 +11,8 @@
     "google-mcp-doctor": "node_modules/.bin/google-mcp-doctor"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run copy-assets",
+    "copy-assets": "node -e \"require('fs').cpSync('src/admin/public','dist/admin/public',{recursive:true})\"",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "doctor": "google-mcp-doctor",

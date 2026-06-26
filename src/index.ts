@@ -3,7 +3,8 @@
  *
  * Wraps the stdio MCP servers shipped by `google-mcp-suite`
  * (gmail / calendar / sheets / docs / drive) and exposes each one over the
- * network as a Streamable HTTP MCP endpoint at `/<service>/mcp`.
+ * network as a Streamable HTTP MCP endpoint at `/<account>/<service>`, where
+ * `<account>` is an account authorized via the /admin UI.
  *
  * Each HTTP session spawns its own child stdio server (identity in this suite
  * is bound per-process), and JSON-RPC messages are bridged transparently
@@ -18,7 +19,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 
-import { mountAdmin } from "./admin.js";
+import { mountAdmin, validAccount, accountAuthorized, authorizedAccounts } from "./admin/index.js";
 
 // --- Configuration -----------------------------------------------------------
 
@@ -42,6 +43,7 @@ const SERVICES: Record<string, string> = {
 // --- Session bridging --------------------------------------------------------
 
 interface Session {
+  account: string;
   service: string;
   http: StreamableHTTPServerTransport;
   child: StdioClientTransport;
@@ -49,25 +51,26 @@ interface Session {
 
 const sessions = new Map<string, Session>();
 
-/** Build the environment for a child server, picking the right Google account. */
-function childEnv(service: string): Record<string, string> {
-  const account =
-    process.env[`${service.toUpperCase()}_ACCOUNT`] ?? process.env.GOOGLE_MCP_ACCOUNT;
-
+/** Build the environment for a child server, binding it to `account`. */
+function childEnv(account: string): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (v !== undefined) env[k] = v;
   }
   env.PATH = `${BIN_DIR}:${process.env.PATH ?? ""}`;
-  if (account) env.GOOGLE_MCP_ACCOUNT = account;
+  // The child reads GOOGLE_MCP_ACCOUNT for its identity; it comes from the URL
+  // (/<account>/<service>), never inherited from the proxy environment.
+  delete env.GOOGLE_MCP_ACCOUNT;
+  env.GOOGLE_MCP_ACCOUNT = account;
   return env;
 }
 
-/** Spawn a child stdio server and wire it to a fresh Streamable HTTP transport. */
-async function createSession(service: string): Promise<Session> {
+/** Spawn a child stdio server bound to `account` and wire it to a fresh Streamable HTTP transport. */
+async function createSession(account: string, service: string): Promise<Session> {
+  const label = `${account}/${service}`;
   const child = new StdioClientTransport({
     command: SERVICES[service],
-    env: childEnv(service),
+    env: childEnv(account),
     stderr: "inherit", // surface auth / google-mcp diagnostics in our logs
   });
 
@@ -75,18 +78,18 @@ async function createSession(service: string): Promise<Session> {
     sessionIdGenerator: () => randomUUID(),
     onsessioninitialized: (sessionId) => {
       sessions.set(sessionId, session);
-      console.log(`[${service}] session opened: ${sessionId}`);
+      console.log(`[${label}] session opened: ${sessionId}`);
     },
   });
 
-  const session: Session = { service, http, child };
+  const session: Session = { account, service, http, child };
 
   // Transparent JSON-RPC bridge in both directions.
   http.onmessage = (msg) => {
-    child.send(msg).catch((err) => console.error(`[${service}] -> child send failed`, err));
+    child.send(msg).catch((err) => console.error(`[${label}] -> child send failed`, err));
   };
   child.onmessage = (msg) => {
-    http.send(msg).catch((err) => console.error(`[${service}] -> http send failed`, err));
+    http.send(msg).catch((err) => console.error(`[${label}] -> http send failed`, err));
   };
 
   let closed = false;
@@ -96,13 +99,13 @@ async function createSession(service: string): Promise<Session> {
     if (http.sessionId) sessions.delete(http.sessionId);
     void child.close().catch(() => {});
     void http.close().catch(() => {});
-    console.log(`[${service}] session closed: ${http.sessionId ?? "(uninitialized)"}`);
+    console.log(`[${label}] session closed: ${http.sessionId ?? "(uninitialized)"}`);
   };
 
   http.onclose = cleanup;
   child.onclose = cleanup;
-  http.onerror = (err) => console.error(`[${service}] http transport error`, err);
-  child.onerror = (err) => console.error(`[${service}] child transport error`, err);
+  http.onerror = (err) => console.error(`[${label}] http transport error`, err);
+  child.onerror = (err) => console.error(`[${label}] child transport error`, err);
 
   await child.start();
   await http.start();
@@ -136,7 +139,9 @@ app.get("/", (_req, res) => {
   res.json({
     name: "google-mcp-suite-network",
     transport: "streamable-http",
-    endpoints: Object.keys(SERVICES).map((s) => `/${s}/mcp`),
+    route: "/{account}/{service}",
+    services: Object.keys(SERVICES),
+    accounts: authorizedAccounts(),
     admin: "/admin",
   });
 });
@@ -154,14 +159,20 @@ function getSession(req: Request): Session | undefined {
   const sessionId = Array.isArray(id) ? id[0] : id;
   if (!sessionId) return undefined;
   const session = sessions.get(sessionId);
-  if (!session || session.service !== req.params.service) return undefined;
+  if (!session || session.account !== req.params.account || session.service !== req.params.service) {
+    return undefined;
+  }
   return session;
 }
 
-// Client -> server requests (initialize + tool calls).
-app.post("/:service/mcp", requireAuth, async (req, res) => {
-  const { service } = req.params;
+// Client -> server requests (initialize + tool calls), addressed as /<account>/<service>.
+app.post("/:account/:service", requireAuth, async (req, res) => {
+  const { account, service } = req.params;
+  if (!validAccount(account)) return jsonRpcError(res, 400, `invalid account: ${account}`);
   if (!SERVICES[service]) return jsonRpcError(res, 404, `unknown service: ${service}`);
+  if (!accountAuthorized(account)) {
+    return jsonRpcError(res, 404, `account not authorized: ${account} (authorize it at /admin)`);
+  }
 
   try {
     let session = getSession(req);
@@ -169,11 +180,11 @@ app.post("/:service/mcp", requireAuth, async (req, res) => {
       if (req.headers["mcp-session-id"] || !isInitializeRequest(req.body)) {
         return jsonRpcError(res, 400, "no valid session for the given Mcp-Session-Id");
       }
-      session = await createSession(service);
+      session = await createSession(account, service);
     }
     await session.http.handleRequest(req, res, req.body);
   } catch (err) {
-    console.error(`[${service}] request failed`, err);
+    console.error(`[${account}/${service}] request failed`, err);
     if (!res.headersSent) jsonRpcError(res, 500, "internal error");
   }
 });
@@ -185,20 +196,20 @@ async function handleSessionRequest(req: Request, res: Response) {
   try {
     await session.http.handleRequest(req, res);
   } catch (err) {
-    console.error(`[${session.service}] stream request failed`, err);
+    console.error(`[${session.account}/${session.service}] stream request failed`, err);
     if (!res.headersSent) jsonRpcError(res, 500, "internal error");
   }
 }
 
-app.get("/:service/mcp", requireAuth, handleSessionRequest);
-app.delete("/:service/mcp", requireAuth, handleSessionRequest);
+app.get("/:account/:service", requireAuth, handleSessionRequest);
+app.delete("/:account/:service", requireAuth, handleSessionRequest);
 
 const server = app.listen(PORT, HOST, () => {
   console.log(`google-mcp-suite-network listening on http://${HOST}:${PORT}`);
   console.log(`services: ${Object.keys(SERVICES).join(", ")}`);
   if (!AUTH_TOKEN) console.warn("AUTH_TOKEN is not set — endpoints are unauthenticated.");
   if (!process.env.ADMIN_PASSWORD?.trim())
-    console.warn("ADMIN_PASSWORD is not set — the /admin credential UI is UNAUTHENTICATED.");
+    console.warn("ADMIN_PASSWORD is not set — the /admin credential UI is disabled (returns 503).");
 });
 
 // --- Graceful shutdown -------------------------------------------------------
